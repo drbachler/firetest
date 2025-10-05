@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>firetest</title>
+<style>
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: black;
+    height: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+  canvas {
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+    width: 800px;
+    height: 600px;
+    box-shadow: 0 0 40px rgba(255, 100, 0, 0.7);
+    border: 5px solid rgba(255, 200, 100, 0.2);
+    cursor: crosshair;
+  }
+</style>
+</head>
+<body>
+<canvas id="fire"></canvas>
+<script>
+(() => {
+  const canvas = document.getElementById('fire');
+  const ctx = canvas.getContext('2d');
+
+  const width = 320;
+  const height = 200;
+  canvas.width = width;
+  canvas.height = height;
+
+  const firePixels = new Array(width * height).fill(0);
+  const palette = [];
+
+  // ======== FIRE COLOR PALETTE ========
+  for (let i = 0; i < 256; i++) {
+    let r = i < 128 ? i * 2 : 255;
+    let g = i < 128 ? 0 : (i - 128) * 2;
+    let b = 0;
+    palette[i] = [r, g, b];
+  }
+
+  // ======== MOUSE INTERACTIVITY ========
+  let mouseX = -1;
+  let mouseY = -1;
+  let mouseDown = false;
+
+  canvas.addEventListener('mousemove', e => {
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = width / rect.width;
+    const scaleY = height / rect.height;
+    mouseX = Math.floor((e.clientX - rect.left) * scaleX);
+    mouseY = Math.floor((e.clientY - rect.top) * scaleY);
+  });
+
+  canvas.addEventListener('mouseleave', () => { mouseX = -1; mouseY = -1; });
+  canvas.addEventListener('mousedown', () => mouseDown = true);
+  canvas.addEventListener('mouseup', () => mouseDown = false);
+
+  // ======== FIRE SIMULATION ========
+  function updateFire() {
+    // seed the bottom row
+    for (let x = 0; x < width; x++) {
+      const bottom = (height - 1) * width + x;
+      firePixels[bottom] = Math.random() * 255;
+    }
+
+    // add interactive "heat"
+    if (mouseX >= 0 && mouseY >= 0) {
+      const radius = mouseDown ? 10 : 6;
+      const power = mouseDown ? 255 : 180;
+      for (let y = -radius; y <= radius; y++) {
+        for (let x = -radius; x <= radius; x++) {
+          const dx = mouseX + x;
+          const dy = mouseY + y;
+          if (dx >= 0 && dx < width && dy >= 0 && dy < height) {
+            const dist = Math.sqrt(x*x + y*y);
+            if (dist < radius) {
+              firePixels[dy * width + dx] = power * (1 - dist / radius);
+            }
+          }
+        }
+      }
+    }
+
+    // propagate fire upward
+    for (let y = 0; y < height - 1; y++) {
+      for (let x = 0; x < width; x++) {
+        const src = y * width + x;
+        const below = src + width;
+        const rand = (Math.random() * 3) | 0;
+        const decay = (Math.random() * 3) +1| 0;
+        const val = firePixels[below + rand - 1] - decay;
+        firePixels[src] = val > 0 ? val : 0;
+      }
+    }
+  }
+
+  // ======== RENDER ========
+  function renderFire() {
+    const imageData = ctx.createImageData(width, height);
+    const data = imageData.data;
+    for (let i = 0; i < firePixels.length; i++) {
+      const color = palette[Math.floor(firePixels[i])];
+      const idx = i * 4;
+      data[idx] = color[0];
+      data[idx + 1] = color[1];
+      data[idx + 2] = color[2];
+      data[idx + 3] = 255;
+    }
+    ctx.putImageData(imageData, 0, 0);
+  }
+
+  // ======== LOOP ========
+  function loop() {
+    updateFire();
+    renderFire();
+    requestAnimationFrame(loop);
+  }
+
+  loop();
+})();
+</script>
+</body>
+</html>

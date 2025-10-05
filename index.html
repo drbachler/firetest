@@ -49,10 +49,7 @@
   }
 
   // ======== MOUSE INTERACTIVITY ========
-  let mouseX = -1;
-  let mouseY = -1;
-  let mouseDown = false;
-
+  let mouseX = -1, mouseY = -1, mouseDown = false;
   canvas.addEventListener('mousemove', e => {
     const rect = canvas.getBoundingClientRect();
     const scaleX = width / rect.width;
@@ -60,20 +57,58 @@
     mouseX = Math.floor((e.clientX - rect.left) * scaleX);
     mouseY = Math.floor((e.clientY - rect.top) * scaleY);
   });
-
   canvas.addEventListener('mouseleave', () => { mouseX = -1; mouseY = -1; });
   canvas.addEventListener('mousedown', () => mouseDown = true);
   canvas.addEventListener('mouseup', () => mouseDown = false);
+
+  // ======== TEXT AS FIRE SOURCE ========
+  const text = "drbachler";
+  let t = 0;
+
+  function injectBurningText() {
+    const cx = width / 2;
+    const cy = height / 2 + 10;
+    const ampX = 50;
+    const ampY = 40;
+    const speed = 0.0125;
+
+    // compute moving offset
+    const offsetX = cx + Math.sin(t) * ampX;
+    const offsetY = cy + Math.sin(2 * t) * ampY * 0.5;
+    t += speed;
+
+    // draw text into an offscreen buffer
+    const textCanvas = document.createElement("canvas");
+    textCanvas.width = width;
+    textCanvas.height = height;
+    const tctx = textCanvas.getContext("2d");
+    tctx.font = "bold 32px monospace";
+    tctx.textAlign = "center";
+    tctx.textBaseline = "middle";
+    tctx.fillStyle = "white";
+    tctx.fillText(text, offsetX, offsetY);
+
+    // extract pixel data and inject fire energy
+    const textData = tctx.getImageData(0, 0, width, height).data;
+    for (let i = 0; i < textData.length; i += 4) {
+      const brightness = textData[i]; // red channel
+      if (brightness > 32) {
+        const idx = i / 4;
+        // inject strong heat where text pixels exist
+        firePixels[idx] = Math.min(255, firePixels[idx] + brightness * 0.025);
+      }
+    }
+  }
 
   // ======== FIRE SIMULATION ========
   function updateFire() {
     // seed the bottom row
     for (let x = 0; x < width; x++) {
       const bottom = (height - 1) * width + x;
-      firePixels[bottom] = Math.random() * 255;
+      firePixels[bottom] = Math.random() * 0.4 * 255;
     }
 
-    // add interactive "heat"
+    // mouse heat
     if (mouseX >= 0 && mouseY >= 0) {
       const radius = mouseDown ? 10 : 6;
       const power = mouseDown ? 255 : 180;
@@ -91,20 +126,23 @@
       }
     }
 
+    // infinity text as dynamic heat source
+    injectBurningText();
+
     // propagate fire upward
     for (let y = 0; y < height - 1; y++) {
       for (let x = 0; x < width; x++) {
         const src = y * width + x;
         const below = src + width;
         const rand = (Math.random() * 3) | 0;
-        const decay = (Math.random() * 3) +1| 0;
+        const decay = ((Math.random() * 3) + 1) | 0;
         const val = firePixels[below + rand - 1] - decay;
         firePixels[src] = val > 0 ? val : 0;
       }
     }
   }
 
-  // ======== RENDER ========
+  // ======== RENDER FIRE ========
   function renderFire() {
     const imageData = ctx.createImageData(width, height);
     const data = imageData.data;
@@ -119,7 +157,6 @@
     ctx.putImageData(imageData, 0, 0);
   }
 
-  // ======== LOOP ========
   function loop() {
     updateFire();
     renderFire();
